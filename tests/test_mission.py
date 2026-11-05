@@ -132,15 +132,21 @@ def test_http_api(profile):
     server.stop()
 
 
-def test_tools_summaries(profile):
+def test_tools_contract(profile):
+    """Hermes calls handler(args) and requires a JSON string back."""
     from mission import tools
 
-    snap = tools.snapshot(hours=24)
-    assert "sessions" in snap["summary"]
-    assert "running" in snap["summary"]
-    found = tools.search("trades")
+    snap_text = tools.snapshot({"hours": 24})
+    assert isinstance(snap_text, str)
+    snap = json.loads(snap_text)
+    assert "sessions" in snap["summary"] and "running" in snap["summary"]
+
+    found = json.loads(tools.search({"query": "trades"}))
     assert found["hits"] and "1 hits" in found["summary"]
-    nothing = tools.search("zzz-nothing")
-    assert nothing["hits"] == []
-    open_info = tools.open_deck(port=0, open_browser=False)
-    assert open_info["ok"] is True and open_info["url"].startswith("http://127.0.0.1:")
+    assert json.loads(tools.search({"query": "zzz-nothing"}))["hits"] == []
+
+    opened = json.loads(tools.open_deck({"port": 0, "open_browser": False}))
+    assert opened["ok"] is True and opened["url"].startswith("http://127.0.0.1:")
+
+    assert json.loads(tools.waste({}))["ok"] is True
+    assert tools.snapshot({}) == tools.snapshot({"hours": 24})
