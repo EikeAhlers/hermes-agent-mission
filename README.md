@@ -1,8 +1,14 @@
 # Mission Control
 
+<p align="center"><img src="assets/catalog-banner.png" alt="Mission Control" width="100%"></p>
+
 **See your agent work.** A live, zoomable map of everything Hermes is doing — sessions become
 stars, projects become constellations, tool calls become filaments. Not a log viewer: a place you
 can leave open on a second screen and understand at a glance.
+
+![Mission Control, live](assets/demo.gif)
+
+<sub>Recorded on a real profile: 151 sessions, 101M tokens, 9 sessions running at the same time.</sub>
 
 ![Mission Control](assets/shot.png)
 

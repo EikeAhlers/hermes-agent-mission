@@ -4,3 +4,7 @@ __pycache__/
 *.egg-info/
 tools/shoot.py
 assets/shot-drawer.png
+tools/
+assets/demo-raw/
+assets/frame-*.png
+assets/shot-search.png
