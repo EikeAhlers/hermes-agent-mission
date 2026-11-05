@@ -1,0 +1,12 @@
+name: mission
+version: "0.1.0"
+description: "Mission Control — a live, zoomable map of everything your agent is doing. Sessions become stars, projects become constellations, tool calls become filigree: real-time tokens, cost and activity, plus instant search over every message the agent ever wrote."
+author: Eike Ahlers
+kind: standalone
+requires_hermes: ">=0.20.2"
+provides_tools:
+  - mission_open
+  - mission_snapshot
+  - mission_search
+  - mission_waste
+provides_hooks: []
