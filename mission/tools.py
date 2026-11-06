@@ -28,8 +28,9 @@ def _open(port: int = server.DEFAULT_PORT, open_browser: bool = True) -> dict:
         info = server.start(port=0, open_browser=open_browser)
     snap = store.snapshot(hours=24)
     t = snap["totals"]
+    local = info["url"].replace("127.0.0.1", "localhost")
     lines = [
-        f"Mission Control: {info['url']}",
+        f"Mission Control: {local}",
         f"last 24h · {t['sessions']} sessions · {_fmt(t['tokens'])} tokens · ${t['cost']:.2f} · "
         f"{t['tools']} tool messages · {t['running']} running",
     ]
@@ -41,6 +42,7 @@ def _open(port: int = server.DEFAULT_PORT, open_browser: bool = True) -> dict:
     return {
         "ok": True,
         "url": info["url"],
+        "local_url": local,
         "already_running": info["already_running"],
         "totals": t,
         "running": [{"id": s["id"], "title": s["title"], "cluster": s["cluster"]} for s in live],
