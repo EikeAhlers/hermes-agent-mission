@@ -248,6 +248,7 @@ function drawClusterLabels() {
   for (const c of clusters) {
     if (hidden.has(c.label)) continue;
     const p = toScreen(c.cx, c.cy);
+    if (work.open && p.x > view.w - 400) continue;
     const label = c.label.toUpperCase();
     ctx.font = '700 10px ui-sans-serif, system-ui, sans-serif';
     const wLabel = ctx.measureText(label).width;
@@ -481,14 +482,15 @@ document.addEventListener('keydown', (e) => {
 const tip = document.getElementById('tip');
 
 function showTip(n, x, y) {
-  if (!n) { tip.classList.remove('on'); return; }
+  if (!n || (typeof work !== 'undefined' && work.open)) { tip.classList.remove('on'); return; }
   const mins = n.live
     ? Math.max(1, (Date.now() / 1000 - (n.started_at || Date.now() / 1000)) / 60)
     : Math.max(1, ((n.ended_at || Date.now() / 1000) - (n.started_at || Date.now() / 1000)) / 60);
   tip.innerHTML = `<b>${escapeHtml((n.title || '').slice(0, 70))}</b>` +
     `<span>${escapeHtml(n.cluster)} · ${fmt(n.tokens)} tokens · ${money(n.cost || 0)} · ` +
     `${fmt(n.tools || 0)} tools · ${Math.round(n.tokens / mins)} tok/min${n.live ? ' · <em>läuft</em>' : ''}</span>`;
-  tip.style.left = Math.min(x + 16, window.innerWidth - 340) + 'px';
+  const panel = (typeof work !== 'undefined' && work.open) ? 430 : 0;
+  tip.style.left = Math.min(x + 16, window.innerWidth - panel - 350) + 'px';
   tip.style.top = (y + 18) + 'px';
   tip.classList.add('on');
 }
@@ -699,3 +701,129 @@ resize();
 requestAnimationFrame(frame);
 refresh().then(connect);
 setInterval(() => { if (!document.hidden) refresh(); }, 20000);
+
+/* ---------- arbeiten: echte Läufe starten, beobachten, stoppen ---------- */
+const work = {
+  el: document.getElementById('work'),
+  jobs: [],
+  lastEvent: 0,
+  timers: [],
+  open: false,
+};
+
+function workPost(path, payload) {
+  return fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Mission': '1' },
+    body: JSON.stringify(payload || {}),
+  }).then((r) => r.json());
+}
+
+function ago(sec) {
+  if (sec < 60) return Math.round(sec) + 's';
+  if (sec < 3600) return Math.round(sec / 60) + 'm';
+  return (sec / 3600).toFixed(1) + 'h';
+}
+
+function jobRow(job) {
+  const live = job.alive;
+  const name = (job.prompt || '').replace(/\s+/g, ' ').slice(0, 90);
+  const session = job.session ? `<button class="mini" data-open="${escapeHtml(job.session)}">im deck</button>` : '';
+  const stop = live ? `<button class="mini danger" data-stop="${escapeHtml(job.id)}">stop</button>` : '';
+  const tail = (job.tail || '').trim();
+  return `<div class="job ${live ? 'live' : ''}">
+    <div class="job-top"><span class="dot ${live ? '' : 'off'}"></span><span class="job-name">${escapeHtml(name)}</span>
+      <span class="job-meta">${ago(job.elapsed)}</span></div>
+    <div class="job-tail">${tail ? escapeHtml(tail.slice(-420)) : (live ? 'läuft …' : 'fertig')}</div>
+    <div class="job-actions">${session}${stop}</div>
+  </div>`;
+}
+
+function renderJobs() {
+  const box = document.getElementById('job-list');
+  if (!box) return;
+  box.innerHTML = work.jobs.length
+    ? work.jobs.map(jobRow).join('')
+    : '<p class="hint">noch nichts gestartet</p>';
+}
+
+function refreshJobs() {
+  fetch('/api/jobs').then((r) => r.json()).then((d) => {
+    work.jobs = d.jobs || [];
+    renderJobs();
+  }).catch(() => {});
+}
+
+function feedRow(ev) {
+  const who = ev.tool_name ? ev.tool_name : ev.role;
+  const text = (ev.snippet || '').replace(/\s+/g, ' ').slice(0, 160);
+  return `<div class="feed-row"><span class="feed-who">${escapeHtml(who || '')}</span>
+    <span class="feed-title">${escapeHtml((ev.title || '').slice(0, 34))}</span>
+    <span class="feed-text">${escapeHtml(text)}</span></div>`;
+}
+
+function refreshFeed() {
+  fetch('/api/events?since=' + work.lastEvent).then((r) => r.json()).then((d) => {
+    const list = document.getElementById('feed-list');
+    if (!list) return;
+    const events = d.events || [];
+    if (events.length) {
+      work.lastEvent = Math.max(work.lastEvent, ...events.map((e) => e.id));
+      list.insertAdjacentHTML('afterbegin', events.map(feedRow).join(''));
+      while (list.children.length > 60) list.lastElementChild.remove();
+    }
+    if (!list.children.length) list.innerHTML = '<p class="hint">noch keine Aktivität</p>';
+  }).catch(() => {});
+}
+
+function setWorkOpen(open) {
+  work.open = open;
+  if (open) { const t = document.getElementById('tip'); if (t) t.classList.remove('on'); }
+  work.el.classList.toggle('show', open);
+  document.getElementById('work-btn').classList.toggle('on', open);
+  const drawer = document.getElementById('drawer');
+  if (open) drawer.classList.remove('open');
+  work.timers.forEach(clearInterval);
+  work.timers = [];
+  if (open) {
+    refreshJobs();
+    refreshFeed();
+    work.timers.push(setInterval(refreshJobs, 2500), setInterval(refreshFeed, 3000));
+  }
+}
+
+async function startRun() {
+  const box = document.getElementById('prompt');
+  const prompt = box.value.trim();
+  if (!prompt) { box.focus(); return; }
+  const attach = document.getElementById('attach');
+  const session = attach.checked && selectedId ? selectedId : '';
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.textContent = 'startet …';
+  const res = await workPost('/api/run', { prompt, session });
+  btn.disabled = false;
+  btn.textContent = 'starten';
+  if (res.error) {
+    document.getElementById('run-note').textContent = res.error;
+    return;
+  }
+  document.getElementById('run-note').textContent = 'läuft als ' + res.job.id;
+  box.value = '';
+  refreshJobs();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('work-btn').addEventListener('click', () => setWorkOpen(!work.open));
+  document.getElementById('work-x').addEventListener('click', () => setWorkOpen(false));
+  document.getElementById('run-btn').addEventListener('click', startRun);
+  document.getElementById('prompt').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) startRun();
+  });
+  document.getElementById('work').addEventListener('click', async (e) => {
+    const stop = e.target.closest('[data-stop]');
+    if (stop) { await workPost('/api/stop', { job: stop.dataset.stop }); refreshJobs(); return; }
+    const open = e.target.closest('[data-open]');
+    if (open) { openSession(open.dataset.open); }
+  });
+});

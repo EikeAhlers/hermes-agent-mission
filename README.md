@@ -33,10 +33,12 @@ Nicht nur hübsch: jede Frage, die man sich beim Arbeiten stellt, ist ein Klick.
 
 - **? was ist das** — erklärt auf Deutsch, was Stern, Sternbild, Puls, Fäden und Balken bedeuten. Kein Fachchinesisch.
 - **Stern anklicken** — zeigt die eigentliche Aufgabe der Session, was sie gekostet hat, wie viele Tokens pro Minute, die meistgenutzten Tools und den Befehl zum Weitermachen (`hermes --resume <id>`).
+- **▶ arbeiten** — hier wird nicht nur geschaut, sondern gearbeitet: Auftrag eintippen → startet einen **echten** Hermes-Lauf auf deinem Rechner (optional an die gewählte Session gehängt). Du siehst Laufzeit, Live-Ausgabe, den Live-Feed aller Tool-Aufrufe im System und kannst jeden Lauf mit einem Klick stoppen oder im Deck öffnen.
 - **💸 waste** — Sessions der letzten 7 Tage mit den meisten Tokens pro Tool-Aufruf. Genau da verbrennt Geld.
 - **Suche (/)** — jede Nachricht, die je geschrieben wurde, in Millisekunden gefunden.
 - **Hover über einen Stern** — Tokens, Kosten, Tools, tok/min ohne Klick.
 
+![Arbeiten](assets/shot-work.png)
 ![Was ist das](assets/shot-help.png)
 ![Waste](assets/shot-waste.png)
 

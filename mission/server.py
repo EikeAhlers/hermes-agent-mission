@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import store
+from . import jobs, store
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 7337
@@ -87,6 +87,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"hits": store.search(query.get("q", [""])[0])})
         if route == "/api/waste":
             return self._json({"sessions": store.waste()})
+        if route == "/api/jobs":
+            return self._json({"jobs": jobs.listing()})
+        if route == "/api/events":
+            since = int(query.get("since", ["0"])[0] or 0)
+            return self._json({"events": store.events(since)})
         if route.startswith("/api/session/"):
             return self._json(store.session_detail(route.rsplit("/", 1)[-1]))
 
@@ -97,6 +102,53 @@ class Handler(BaseHTTPRequestHandler):
         if not path.exists():
             return self._json({"error": "not found"}, 404)
         self._send(200, path.read_bytes(), CONTENT_TYPES.get(path.suffix, "application/octet-stream"))
+
+    def do_POST(self):  # noqa: N802
+        try:
+            return self._route_post()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except Exception as exc:
+            try:
+                self._json({"error": f"{type(exc).__name__}: {exc}"}, 500)
+            except Exception:
+                pass
+
+    def _same_origin(self) -> bool:
+        origin = (self.headers.get("Origin") or self.headers.get("Referer") or "").lower()
+        if not origin:
+            return self.headers.get("X-Mission") == "1"
+        return "localhost" in origin or "127.0.0.1" in origin
+
+    def _body(self) -> dict:
+        try:
+            size = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return {}
+        if size <= 0 or size > 200_000:
+            return {}
+        try:
+            return json.loads(self.rfile.read(size).decode("utf-8")) or {}
+        except (ValueError, UnicodeDecodeError):
+            return {}
+
+    def _route_post(self):
+        if not self._same_origin():
+            return self._json({"error": "bad origin"}, 403)
+        route = urlparse(self.path).path
+        body = self._body()
+
+        if route == "/api/run":
+            prompt = str(body.get("prompt") or "")
+            session = str(body.get("session") or "") or None
+            profile = str(body.get("profile") or "") or None
+            cwd = str(body.get("cwd") or "") or None
+            result = jobs.start(prompt, session_id=session, profile=profile, cwd=cwd)
+            return self._json(result, 200 if result.get("ok") else 400)
+        if route == "/api/stop":
+            result = jobs.stop(str(body.get("job") or ""))
+            return self._json(result, 200 if result.get("ok") else 400)
+        return self._json({"error": "not found"}, 404)
 
     def _stream(self):
         self.send_response(200)

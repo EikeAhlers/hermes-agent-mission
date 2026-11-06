@@ -277,3 +277,27 @@ def waste() -> list[dict]:
             (since,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def events(since: int = 0, limit: int = 40) -> list[dict]:
+    """Newest messages across every session — the live feed of what the agent is doing."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "select m.id, m.session_id, s.title as title, m.role, m.tool_name, "
+            "substr(coalesce(m.content, ''), 1, 240) as snippet, m.timestamp "
+            "from messages m left join sessions s on s.id = m.session_id "
+            "where m.id > ? order by m.id desc limit ?",
+            (int(since), int(limit)),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def newest_since(started_at: float, window: float = 1800.0) -> str:
+    """The session a freshly spawned run created (earliest start inside the window)."""
+    with _conn() as conn:
+        row = conn.execute(
+            "select id from sessions where started_at >= ? and started_at <= ? "
+            "order by started_at asc limit 1",
+            (float(started_at) - 2, float(started_at) + window),
+        ).fetchone()
+    return row["id"] if row else ""

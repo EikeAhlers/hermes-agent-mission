@@ -26,6 +26,7 @@
     <div class="metric"><span class="k">tools 24h</span><span class="v" id="m-tools">0</span></div>
   </div>
   <div class="hud-right">
+    <button class="pill-btn on-accent" id="work-btn" title="Aufträge starten, Läufe beobachten, Live-Feed ( W )">▶ arbeiten</button>
     <button class="pill-btn" id="waste-btn" title="Sessions, die viele Tokens für wenig Arbeit verbrannt haben">💸 waste</button>
     <button class="pill-btn" id="help-btn" title="Was ist das hier?  ( ? )">? was ist das</button>
     <div class="live" id="live"><span class="dot"></span><span id="live-label">connecting</span></div>
@@ -49,6 +50,7 @@
     <ul>
       <li><b>Stern anklicken</b> → was gemacht wurde, welche Tools, was es gekostet hat, und der Befehl zum Weitermachen.</li>
       <li><b>/ drücken</b> → jede Nachricht durchsuchen, die der Bot je geschrieben hat.</li>
+      <li><b>▶ arbeiten</b> → Auftrag eintippen, läuft als echter Lauf im Hintergrund. Du siehst Fortschritt, Ausgabe und kannst ihn stoppen.</li>
       <li><b>💸 waste</b> → Sessions, die viel Geld für wenig Ergebnis verbraucht haben. Das ist der teure Teil.</li>
     </ul>
     <p class="sheet-foot">Alles kommt aus der eigenen Datenbank. Keine Cloud, nichts verlässt den Rechner.</p>
@@ -63,6 +65,24 @@
     <div id="waste-list"><p class="hint">lädt…</p></div>
   </div>
 </div>
+
+<aside id="work">
+  <button id="work-x" aria-label="close">×</button>
+  <h2>Arbeiten</h2>
+  <p class="work-sub">Ein Auftrag = ein echter Hermes-Lauf auf diesem Rechner. Läuft im Hintergrund, du siehst alles live.</p>
+  <textarea id="prompt" rows="3" placeholder="Was soll Hermes machen?  z.B. Prüfe die Filament-Preise und schreib sie in die Liste."></textarea>
+  <div class="work-row">
+    <button id="run-btn" class="go">starten</button>
+    <label class="check"><input type="checkbox" id="attach"> an gewählte Session hängen</label>
+  </div>
+  <p class="work-note" id="run-note"></p>
+
+  <h3>Läufe</h3>
+  <div id="job-list"><p class="hint">lädt …</p></div>
+
+  <h3>Live</h3>
+  <div id="feed-list"><p class="hint">lädt …</p></div>
+</aside>
 
 <div id="search-wrap">
   <input id="search" type="search" placeholder="Search every message…  ( / )" autocomplete="off" spellcheck="false">
