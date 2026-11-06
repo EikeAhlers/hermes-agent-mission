@@ -27,6 +27,19 @@ Mission Control reads that database (read-only) and turns it into a picture:
 
 Zero configuration. It uses the profile it runs in, so it is instantly your data.
 
+## Was es dir bringt
+
+Nicht nur hübsch: jede Frage, die man sich beim Arbeiten stellt, ist ein Klick.
+
+- **? was ist das** — erklärt auf Deutsch, was Stern, Sternbild, Puls, Fäden und Balken bedeuten. Kein Fachchinesisch.
+- **Stern anklicken** — zeigt die eigentliche Aufgabe der Session, was sie gekostet hat, wie viele Tokens pro Minute, die meistgenutzten Tools und den Befehl zum Weitermachen (`hermes --resume <id>`).
+- **💸 waste** — Sessions der letzten 7 Tage mit den meisten Tokens pro Tool-Aufruf. Genau da verbrennt Geld.
+- **Suche (/)** — jede Nachricht, die je geschrieben wurde, in Millisekunden gefunden.
+- **Hover über einen Stern** — Tokens, Kosten, Tools, tok/min ohne Klick.
+
+![Was ist das](assets/shot-help.png)
+![Waste](assets/shot-waste.png)
+
 ## Install
 
 ```bash

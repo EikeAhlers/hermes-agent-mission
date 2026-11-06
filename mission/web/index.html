@@ -25,8 +25,44 @@
     <div class="metric"><span class="k">cost 24h</span><span class="v" id="m-cost">$0</span></div>
     <div class="metric"><span class="k">tools 24h</span><span class="v" id="m-tools">0</span></div>
   </div>
-  <div class="live" id="live"><span class="dot"></span><span id="live-label">connecting</span></div>
+  <div class="hud-right">
+    <button class="pill-btn" id="waste-btn" title="Sessions, die viele Tokens für wenig Arbeit verbrannt haben">💸 waste</button>
+    <button class="pill-btn" id="help-btn" title="Was ist das hier?  ( ? )">? was ist das</button>
+    <div class="live" id="live"><span class="dot"></span><span id="live-label">connecting</span></div>
+  </div>
 </header>
+
+<div id="tip"></div>
+
+<div id="help" class="sheet">
+  <div class="sheet-in">
+    <button class="sheet-x" id="help-x" aria-label="close">×</button>
+    <h2>Was du hier siehst</h2>
+    <ul>
+      <li><b>Stern</b> = eine Unterhaltung (Session). Größer heißt: mehr Tokens, also mehr Geld.</li>
+      <li><b>Sternbild</b> = ein Projekt, aus dem Titel erkannt. Die Zahl dahinter = wie viele Sessions.</li>
+      <li><b>Pulsierender Stern</b> = dieser Chat läuft genau jetzt.</li>
+      <li><b>Fäden</b> = was der Bot in dem Projekt automatisch ausgeführt hat.</li>
+      <li><b>Balken unten</b> = die letzten 24 Stunden. Hell = viel los, dunkel = Ruhe.</li>
+    </ul>
+    <h2>Was es dir bringt</h2>
+    <ul>
+      <li><b>Stern anklicken</b> → was gemacht wurde, welche Tools, was es gekostet hat, und der Befehl zum Weitermachen.</li>
+      <li><b>/ drücken</b> → jede Nachricht durchsuchen, die der Bot je geschrieben hat.</li>
+      <li><b>💸 waste</b> → Sessions, die viel Geld für wenig Ergebnis verbraucht haben. Das ist der teure Teil.</li>
+    </ul>
+    <p class="sheet-foot">Alles kommt aus der eigenen Datenbank. Keine Cloud, nichts verlässt den Rechner.</p>
+  </div>
+</div>
+
+<div id="waste" class="sheet">
+  <div class="sheet-in">
+    <button class="sheet-x" id="waste-x" aria-label="close">×</button>
+    <h2>Teuer ohne Ergebnis</h2>
+    <p class="sheet-foot">Sessions der letzten 7 Tage mit den meisten Tokens pro Tool-Aufruf. Klick = Details.</p>
+    <div id="waste-list"><p class="hint">lädt…</p></div>
+  </div>
+</div>
 
 <div id="search-wrap">
   <input id="search" type="search" placeholder="Search every message…  ( / )" autocomplete="off" spellcheck="false">

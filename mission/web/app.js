@@ -431,6 +431,7 @@ sky.addEventListener('pointermove', (e) => {
   const n = pick(e.clientX, e.clientY);
   hoverId = n ? n.id : null;
   sky.style.cursor = n ? 'pointer' : 'grab';
+  showTip(n, e.clientX, e.clientY);
 });
 
 sky.addEventListener('pointerdown', (e) => {
@@ -465,9 +466,59 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     document.getElementById('search').focus();
   }
-  if (e.key === 'Escape') { closeDrawer(); document.getElementById('hits').classList.remove('on'); }
+  if (e.key === '?' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); sheet('help', true); }
+  if (e.key === 'Escape') {
+    closeDrawer();
+    document.getElementById('hits').classList.remove('on');
+    sheet('help', false);
+    sheet('waste', false);
+  }
   if (e.key === 'f') { cam.fit = false; fit(); }
 });
+
+// ---------- explaining things ----------
+
+const tip = document.getElementById('tip');
+
+function showTip(n, x, y) {
+  if (!n) { tip.classList.remove('on'); return; }
+  const mins = n.live
+    ? Math.max(1, (Date.now() / 1000 - (n.started_at || Date.now() / 1000)) / 60)
+    : Math.max(1, ((n.ended_at || Date.now() / 1000) - (n.started_at || Date.now() / 1000)) / 60);
+  tip.innerHTML = `<b>${escapeHtml((n.title || '').slice(0, 70))}</b>` +
+    `<span>${escapeHtml(n.cluster)} · ${fmt(n.tokens)} tokens · ${money(n.cost || 0)} · ` +
+    `${fmt(n.tools || 0)} tools · ${Math.round(n.tokens / mins)} tok/min${n.live ? ' · <em>läuft</em>' : ''}</span>`;
+  tip.style.left = Math.min(x + 16, window.innerWidth - 340) + 'px';
+  tip.style.top = (y + 18) + 'px';
+  tip.classList.add('on');
+}
+
+function sheet(id, on) {
+  document.getElementById(id).classList.toggle('on', on);
+}
+
+document.getElementById('help-btn').onclick = () => sheet('help', true);
+document.getElementById('help-x').onclick = () => sheet('help', false);
+document.getElementById('waste-x').onclick = () => sheet('waste', false);
+document.getElementById('help').onclick = (e) => { if (e.target.id === 'help') sheet('help', false); };
+document.getElementById('waste').onclick = (e) => { if (e.target.id === 'waste') sheet('waste', false); };
+
+document.getElementById('waste-btn').onclick = async () => {
+  sheet('waste', true);
+  const box = document.getElementById('waste-list');
+  box.innerHTML = '<p class="hint">lädt…</p>';
+  const rows = (await (await fetch('/api/waste')).json()).sessions || [];
+  if (!rows.length) { box.innerHTML = '<p class="hint">Nichts Auffälliges in den letzten 7 Tagen.</p>'; return; }
+  box.innerHTML = rows.slice(0, 20).map((r) => `
+    <div class="wrow" data-id="${escapeHtml(r.id)}">
+      <i>${fmt(r.tokens)} tok</i>
+      <b>${escapeHtml((r.title || '').slice(0, 64))}</b>
+      <span>${r.tools} tools</span>
+    </div>`).join('');
+  box.querySelectorAll('.wrow').forEach((el) => {
+    el.onclick = () => { sheet('waste', false); openSession(el.dataset.id); };
+  });
+};
 
 // ---------- data ----------
 
@@ -535,8 +586,13 @@ function renderDetail(s, n) {
   const tokens = (s.input_tokens || 0) + (s.output_tokens || 0);
   const started = s.started_at ? new Date(s.started_at * 1000) : null;
   const running = !s.ended_at;
+  const end = s.ended_at || Date.now() / 1000;
+  const mins = Math.max(1, (end - (s.started_at || end)) / 60);
+  const dur = mins < 60 ? Math.round(mins) + ' min' : (mins / 60).toFixed(1) + ' h';
+  const rate = Math.round(tokens / mins);
   const tools = (s.tools || []).map((t) => `<div class="tool"><span>${escapeHtml(t.name)}</span><b>${t.n}</b></div>`).join('');
-  const msgs = (s.messages || []).slice(-7).map((m) => `
+  const task = s.task ? { content: s.task } : null;
+  const msgs = (s.messages || []).slice(-4).map((m) => `
     <div class="msg"><div class="who">${escapeHtml(m.tool_name || m.role)} · ${ago(m.timestamp || Date.now() / 1000)}</div>
     <p>${escapeHtml(cleanContent(m.content))}</p></div>`).join('');
   document.getElementById('drawer-body').innerHTML = `
@@ -546,10 +602,14 @@ function renderDetail(s, n) {
       <div class="cell"><div class="k">tokens</div><div class="v">${fmt(tokens)}</div></div>
       <div class="cell"><div class="k">cost</div><div class="v">${money(s.estimated_cost_usd || 0)}</div></div>
       <div class="cell"><div class="k">tool messages</div><div class="v">${(s.tools || []).reduce((a, t) => a + t.n, 0)}</div></div>
-      <div class="cell"><div class="k">${running ? 'started' : 'ended'}</div><div class="v">${stamp(s.started_at || 0)}</div></div>
+      <div class="cell"><div class="k">${running ? 'läuft seit' : 'dauer'}</div><div class="v">${dur}</div></div>
     </div>
-    <h3>top tools</h3>${tools || '<p class="hint">none</p>'}
-    <h3>last messages</h3>${msgs || '<p class="hint">none</p>'}`;
+    ${task ? `<h3>die eigentliche aufgabe</h3><div class="msg"><p>${escapeHtml(cleanContent(task.content).slice(0, 700))}</p></div>` : ''}
+    <h3>weitermachen</h3>
+    <div class="sub" style="font-family:ui-monospace,monospace">hermes --resume ${escapeHtml(s.id)}</div>
+    <p class="hint">${rate} tok/min im Schnitt${running ? ' · läuft gerade' : ''}</p>
+    <h3>meistgenutzte tools</h3>${tools || '<p class="hint">keine</p>'}
+    <h3>letzte nachrichten</h3>${msgs || '<p class="hint">keine</p>'}`;
 }
 
 function closeDrawer() {

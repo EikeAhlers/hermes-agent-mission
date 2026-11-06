@@ -232,12 +232,19 @@ def session_detail(session_id: str) -> dict:
             "from messages where session_id = ? order by id desc limit 30",
             (session_id,),
         ).fetchall()
+        first = conn.execute(
+            "select content from messages where session_id = ? and role = 'user' "
+            "and content is not null and length(trim(content)) > 12 "
+            "order by timestamp asc limit 1",
+            (session_id,),
+        ).fetchone()
         tools = conn.execute(
             "select tool_name as name, count(*) as n from messages "
             "where session_id = ? and tool_name is not null group by tool_name order by n desc limit 12",
             (session_id,),
         ).fetchall()
     data = dict(row)
+    data["task"] = (first["content"][:800] if first else "")
     data["tools"] = [dict(t) for t in tools]
     data["messages"] = [dict(m) for m in reversed(messages)]
     return data
