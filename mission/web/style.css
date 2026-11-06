@@ -266,3 +266,10 @@ button.mini.danger:hover { border-color: rgba(255, 120, 120, .7); color: #ffdede
 #chat-in:focus { border-color: rgba(125, 211, 252, .6); }
 #chat-send { align-self: flex-end; height: 40px; }
 #chat-send:disabled { opacity: .5; cursor: default; }
+
+#chat-body .m.pending .txt { border-style: dashed; color: #9fb6d2; }
+#chat-body .m.pending .dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px;
+  background: #5ee6a8; animation: pulse-dot 1s infinite ease-in-out; vertical-align: middle;
+}
+@keyframes pulse-dot { 0%,100% { opacity: .25; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }

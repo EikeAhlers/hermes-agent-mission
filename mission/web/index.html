@@ -22,7 +22,7 @@
     <div class="metric"><span class="k">running</span><span class="v" id="m-running">0</span></div>
     <div class="metric"><span class="k">sessions 24h</span><span class="v" id="m-sessions">0</span></div>
     <div class="metric"><span class="k">tokens 24h</span><span class="v" id="m-tokens">0</span></div>
-    <div class="metric"><span class="k">cost 24h</span><span class="v" id="m-cost">$0</span></div>
+    <div class="metric" title="cost = geschätzte Kosten in US-Dollar. Hermes rechnet beim Lauf: verbrauchte Tokens × hinterlegter Modellpreis. Es ist eine Schätzung, keine Rechnung."><span class="k">cost 24h (geschätzt)</span><span class="v" id="m-cost">$0</span></div>
     <div class="metric"><span class="k">tools 24h</span><span class="v" id="m-tools">0</span></div>
   </div>
   <div class="hud-right">
@@ -49,11 +49,13 @@
     </ul>
     <h2>Was es dir bringt</h2>
     <ul>
-      <li><b>Stern anklicken</b> → was gemacht wurde, welche Tools, was es gekostet hat, und der Befehl zum Weitermachen.</li>
+      <li><b>Stern anklicken</b> oder <b>C</b> → der Chat geht auf: tippen, Enter, du siehst live was der Bot tut (jedes Tool als Zeile), die Antwort wächst mit, <b>stop</b> bricht ab, <b>+ neu</b> startet eine frische Unterhaltung. Das ist der Hauptweg, den Chat-Tab brauchst du dafür nicht.</li>
       <li><b>/ drücken</b> → jede Nachricht durchsuchen, die der Bot je geschrieben hat.</li>
       <li><b>▶ arbeiten</b> → Auftrag eintippen, läuft als echter Lauf im Hintergrund. Du siehst Fortschritt, Ausgabe und kannst ihn stoppen.</li>
       <li><b>💸 waste</b> → Sessions, die viel Geld für wenig Ergebnis verbraucht haben. Das ist der teure Teil.</li>
     </ul>
+    <h2>Was heißt cost?</h2>
+    <p class="sheet-foot" style="margin-bottom:10px">Eine <b>Schätzung in US-Dollar</b>. Hermes rechnet beim Lauf: verbrauchte Tokens × der hinterlegte Preis des Modells, das geantwortet hat (Input und Output getrennt). Es ist keine Rechnung eines Anbieters, sondern die Hausnummer aus der eigenen Datenbank — gut zum Vergleichen, nicht zum Abrechnen. Kleine Läufe kosten cents, große mit vielen Tool-Runden entsprechend mehr.</p>
     <p class="sheet-foot">Alles kommt aus der eigenen Datenbank. Keine Cloud, nichts verlässt den Rechner.</p>
   </div>
 </div>

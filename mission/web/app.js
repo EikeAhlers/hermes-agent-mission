@@ -829,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ---------- chat: hier wird gearbeitet, nicht nur geschaut --------------- */
-const chat = { id: null, lastId: 0, timer: null, job: null, busy: false, el: null, seen: new Set(), inflight: false };
+const chat = { id: null, lastId: 0, timer: null, job: null, busy: false, el: null, seen: new Set(), inflight: false, ev: 0, lastTool: '', startedAt: 0 };
 
 function chatEl(id) { return document.getElementById(id); }
 
@@ -884,6 +884,8 @@ function openChat(id) {
   chat.job = null;
   chat.seen = new Set();
   chat.inflight = false;
+  chat.ev = 0;
+  chat.lastTool = '';
   chatEl('chat-body').innerHTML = '<p class="hint">lädt …</p>';
   document.getElementById('chat').classList.add('show');
   document.getElementById('work').classList.remove('show');
@@ -930,6 +932,69 @@ function setChatBusy(on) {
   chatEl('chat-stop').hidden = !on;
 }
 
+function chatPending(on, text) {
+  let row = document.getElementById('chat-pending');
+  if (!on) { if (row) row.remove(); return; }
+  if (!row) {
+    chatEl('chat-body').insertAdjacentHTML('beforeend',
+      '<div class="m assistant pending" id="chat-pending"><div class="who">hermes</div><div class="txt"><span class="dot"></span><span id="pending-text">läuft …</span></div></div>');
+    row = document.getElementById('chat-pending');
+  }
+  if (text) document.getElementById('pending-text').textContent = text;
+  chatScroll(true);
+}
+
+function chatElapsed() {
+  if (!chat.startedAt) return '';
+  const sec = Math.max(0, Math.round((Date.now() - chat.startedAt) / 1000));
+  return sec < 60 ? sec + 's' : Math.floor(sec / 60) + 'm ' + (sec % 60) + 's';
+}
+
+function chatEvents() {
+  if (!chat.id) return;
+  fetch(`/api/events?since=${chat.ev}`).then((r) => r.json()).then((d) => {
+    const rows = (d.events || []).filter((e) => e.session_id === chat.id).reverse();
+    if (!rows.length) return;
+    for (const e of rows) {
+      chat.ev = Math.max(chat.ev, e.id);
+      if (!e.tool_name) continue;
+      chat.lastTool = e.tool_name;
+      chatEl('chat-body').insertAdjacentHTML('beforeend',
+        `<div class="m tool"><div class="who">${escapeHtml(e.tool_name)}</div><div class="txt">${escapeHtml((e.snippet || '').slice(0, 260))}</div></div>`);
+      chatScroll(true);
+    }
+    if (chat.busy) chatPending(true, `läuft ${chatElapsed()} · zuletzt ${chat.lastTool || 'denkt'} …`);
+  }).catch(() => {});
+}
+
+function chatWatch() {
+  if (chat.timer) clearInterval(chat.timer);
+  chat.timer = setInterval(() => {
+    chatPoll();
+    chatEvents();
+    if (chat.busy) chatPending(true, `läuft ${chatElapsed()} · zuletzt ${chat.lastTool || 'denkt'} …`);
+    if (chat.busy && chat.job) {
+      fetch('/api/jobs').then((r) => r.json()).then((d) => {
+        const job = (d.jobs || []).find((j) => j.id === chat.job);
+        if (!job) return;
+        if (!chat.id && job.session) {
+          chat.id = job.session;
+          chat.seen = new Set();
+          chat.lastId = 0;
+          chatEl('chat-body').innerHTML = '';
+        }
+        if (!job.alive) {
+          setChatBusy(false);
+          chatTimeout && clearTimeout(chatTimeout);
+          chatPending(false);
+          chatPoll();
+          chatEvents();
+        }
+      }).catch(() => {});
+    }
+  }, 1200);
+}
+
 async function sendChat() {
   const input = chatEl('chat-in');
   const text = input.value.trim();
@@ -938,45 +1003,24 @@ async function sendChat() {
   chatEl('chat-body').insertAdjacentHTML('beforeend',
     `<div class="m user"><div class="who">du</div><div class="txt">${escapeHtml(text)}</div></div>`);
   chatScroll(true);
+  chat.busy = true;
+  chat.lastTool = '';
+  chat.startedAt = Date.now();
+  if (!chat.timer) chatWatch();
   setChatBusy(true);
+  chatPending(true, 'startet …');
   const res = await workPost('/api/chat', { prompt: text, session: chat.id || null });
   if (res.error) {
-    setChatBusy(false);
+    setChatBusy(false); chatPending(false);
     chatEl('chat-sub').textContent = 'fehler: ' + res.error;
     return;
   }
   chat.job = res.job ? res.job.id : null;
-  if (!chat.id) {
-    // erster Satz: warten bis der Lauf seine Session angelegt hat, dann andocken
-    let tries = 0;
-    const bind = setInterval(() => {
-      tries += 1;
-      fetch('/api/jobs').then((r) => r.json()).then((d) => {
-        const job = (d.jobs || []).find((j) => j.id === chat.job);
-        if (job && job.session) {
-          clearInterval(bind);
-          chat.id = job.session;
-          chat.lastId = 0;
-          chat.seen = new Set();
-          chatEl('chat-body').innerHTML = '';
-          chatPoll();
-          chatScroll(true);
-          if (!chat.timer) chat.timer = setInterval(chatPoll, 1300);
-        } else if (tries > 40) { clearInterval(bind); }
-      }).catch(() => {});
-    }, 1000);
-  }
-  // fertig? dann busy lösen
-  const wait = setInterval(() => {
-    fetch('/api/jobs').then((r) => r.json()).then((d) => {
-      const job = (d.jobs || []).find((j) => j.id === chat.job);
-      if (!job) return;
-      if (!job.alive) { clearInterval(wait); setChatBusy(false); chatPoll(); }
-      else { if (job.session && !chat.id) { chat.id = job.session; } chatPoll(); }
-    }).catch(() => {});
-  }, 2000);
+  chatPending(true, 'läuft · hermes startet …');
+  chatWatch();
 }
 
+let chatTimeout = null;
 document.addEventListener('DOMContentLoaded', () => {
   chatEl('chat-send').addEventListener('click', sendChat);
   chatEl('chat-in').addEventListener('keydown', (e) => {
