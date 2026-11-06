@@ -87,6 +87,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"hits": store.search(query.get("q", [""])[0])})
         if route == "/api/waste":
             return self._json({"sessions": store.waste()})
+        if route.startswith("/api/chat/"):
+            sid = route.rsplit("/", 1)[-1]
+            since = int(query.get("since", ["0"])[0] or 0)
+            return self._json(store.transcript(sid, since))
         if route == "/api/jobs":
             return self._json({"jobs": jobs.listing()})
         if route == "/api/events":
@@ -144,6 +148,13 @@ class Handler(BaseHTTPRequestHandler):
             profile = str(body.get("profile") or "") or None
             cwd = str(body.get("cwd") or "") or None
             result = jobs.start(prompt, session_id=session, profile=profile, cwd=cwd)
+            return self._json(result, 200 if result.get("ok") else 400)
+        if route == "/api/chat":
+            prompt = str(body.get("prompt") or "")
+            session = str(body.get("session") or "") or None
+            if not prompt.strip():
+                return self._json({"error": "leer"}, 400)
+            result = jobs.start(prompt, session_id=session, profile=str(body.get("profile") or "") or None)
             return self._json(result, 200 if result.get("ok") else 400)
         if route == "/api/stop":
             result = jobs.stop(str(body.get("job") or ""))

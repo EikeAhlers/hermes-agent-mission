@@ -36,3 +36,19 @@ def test_listing_keeps_tail(tmp_path, monkeypatch):
 def test_secrets_redacted():
     text = "sk-abcdefghijklmnopqrstuv"
     assert "[REDACTED]" in jobs._SECRET.sub("[REDACTED]", text)
+
+
+def test_transcript_shape():
+    from mission import store
+
+    data = store.transcript("local-c9d3354eaa16384122a9f68b4230b1f6d094f467a1d881794c06d6f4db7c3107")
+    assert set(data) >= {"session", "title", "messages"}
+    assert isinstance(data["messages"], list)
+    for m in data["messages"]:
+        assert {"id", "role", "text"} <= set(m)
+
+
+def test_transcript_unknown_session_is_empty():
+    from mission import store
+
+    assert store.transcript("gibt-es-nicht")["messages"] == []

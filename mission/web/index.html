@@ -26,6 +26,7 @@
     <div class="metric"><span class="k">tools 24h</span><span class="v" id="m-tools">0</span></div>
   </div>
   <div class="hud-right">
+    <button class="pill-btn on-accent" id="chat-btn" title="Chat im Deck ( C )">💬 chat</button>
     <button class="pill-btn on-accent" id="work-btn" title="Aufträge starten, Läufe beobachten, Live-Feed ( W )">▶ arbeiten</button>
     <button class="pill-btn" id="waste-btn" title="Sessions, die viele Tokens für wenig Arbeit verbrannt haben">💸 waste</button>
     <button class="pill-btn" id="help-btn" title="Was ist das hier?  ( ? )">? was ist das</button>
@@ -65,6 +66,26 @@
     <div id="waste-list"><p class="hint">lädt…</p></div>
   </div>
 </div>
+
+<aside id="chat">
+  <header id="chat-head">
+    <div class="chat-title-wrap">
+      <h2 id="chat-title">chat</h2>
+      <p class="sub" id="chat-sub"></p>
+    </div>
+    <div class="chat-tools">
+      <button class="mini" id="chat-new" title="neue Unterhaltung">+ neu</button>
+      <button class="mini danger" id="chat-stop" hidden>stop</button>
+      <button class="mini" id="chat-info" title="Details zu dieser Session">infos</button>
+      <button class="mini" id="chat-x" title="schließen (Esc)">×</button>
+    </div>
+  </header>
+  <div id="chat-body"></div>
+  <div id="chat-foot">
+    <textarea id="chat-in" rows="2" placeholder="schreiben …  Enter = senden, Shift+Enter = neue Zeile"></textarea>
+    <button id="chat-send" class="go">senden</button>
+  </div>
+</aside>
 
 <aside id="work">
   <button id="work-x" aria-label="close">×</button>

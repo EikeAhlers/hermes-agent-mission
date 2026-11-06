@@ -301,3 +301,36 @@ def newest_since(started_at: float, window: float = 1800.0) -> str:
             (float(started_at) - 2, float(started_at) + window),
         ).fetchone()
     return row["id"] if row else ""
+
+
+def transcript(session_id: str, after_id: int = 0, limit: int = 300) -> dict:
+    """The real conversation of one session — what the chat panel renders."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "select id, role, tool_name, content, timestamp, tool_calls "
+            "from messages where session_id = ? and id > ? order by id asc limit ?",
+            (session_id, int(after_id), int(limit)),
+        ).fetchall()
+        head = conn.execute("select title, started_at from sessions where id = ?", (session_id,)).fetchone()
+    out = []
+    for row in rows:
+        item = {
+            "id": row["id"],
+            "role": row["role"] or "",
+            "tool": row["tool_name"] or "",
+            "text": (row["content"] or "")[:12000],
+            "ts": row["timestamp"],
+        }
+        if row["tool_calls"]:
+            try:
+                calls = json.loads(row["tool_calls"])
+                item["calls"] = [c.get("function", {}).get("name", "") for c in calls if isinstance(c, dict)]
+            except (ValueError, TypeError):
+                item["calls"] = []
+        out.append(item)
+    return {
+        "session": session_id,
+        "title": (head["title"] if head else "") or "",
+        "started_at": (head["started_at"] if head else 0),
+        "messages": out,
+    }

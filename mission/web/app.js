@@ -446,7 +446,7 @@ window.addEventListener('pointerup', (e) => {
   sky.classList.remove('dragging');
   if (wasDrag) return;
   const n = pick(e.clientX, e.clientY);
-  if (n) openSession(n.id);
+  if (n) openChat(n.id);
   else closeDrawer();
 });
 
@@ -518,7 +518,7 @@ document.getElementById('waste-btn').onclick = async () => {
       <span>${r.tools} tools</span>
     </div>`).join('');
   box.querySelectorAll('.wrow').forEach((el) => {
-    el.onclick = () => { sheet('waste', false); openSession(el.dataset.id); };
+    el.onclick = () => { sheet('waste', false); openChat(el.dataset.id); };
   });
 };
 
@@ -824,6 +824,180 @@ document.addEventListener('DOMContentLoaded', () => {
     const stop = e.target.closest('[data-stop]');
     if (stop) { await workPost('/api/stop', { job: stop.dataset.stop }); refreshJobs(); return; }
     const open = e.target.closest('[data-open]');
-    if (open) { openSession(open.dataset.open); }
+    if (open) { openChat(open.dataset.open); }
+  });
+});
+
+/* ---------- chat: hier wird gearbeitet, nicht nur geschaut --------------- */
+const chat = { id: null, lastId: 0, timer: null, job: null, busy: false, el: null, seen: new Set(), inflight: false };
+
+function chatEl(id) { return document.getElementById(id); }
+
+function chatScroll(follow) {
+  const body = chatEl('chat-body');
+  if (follow) body.scrollTop = body.scrollHeight;
+}
+
+function chatMessage(m) {
+  const role = m.role === 'user' ? 'user' : (m.role === 'tool' ? 'tool' : (m.tool ? 'tool' : 'assistant'));
+  const who = role === 'user' ? 'du' : (role === 'tool' ? (m.tool || 'tool') : 'hermes');
+  const text = (m.text || '').trim();
+  if (!text) return '';
+  const calls = (m.calls || []).length
+    ? `<div class="calls">${m.calls.map((c) => `<span>${escapeHtml(c)}</span>`).join('')}</div>` : '';
+  return `<div class="m ${role}"><div class="who">${escapeHtml(who)}</div>
+    <div class="txt">${escapeHtml(text.slice(0, 4000))}</div>${calls}</div>`;
+}
+
+function chatPaint(data) {
+  const body = chatEl('chat-body');
+  const msgs = (data.messages || []).filter((m) => !chat.seen.has(m.id));
+  if (!msgs.length) return;
+  msgs.forEach((m) => chat.seen.add(m.id));
+  const stick = body.scrollHeight - body.scrollTop - body.clientHeight < 160;
+  body.insertAdjacentHTML('beforeend', msgs.map(chatMessage).join(''));
+  chat.lastId = Math.max(chat.lastId, ...msgs.map((m) => m.id));
+  if (stick) chatScroll(true);
+}
+
+function chatHeader(data) {
+  chatEl('chat-title').textContent = data.title || 'neue unterhaltung';
+  const bits = [];
+  if (data.started_at) bits.push(new Date(data.started_at * 1000).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }));
+  if (chat.busy) bits.push('läuft …');
+  chatEl('chat-sub').textContent = bits.join(' · ');
+}
+
+function chatPoll() {
+  if (!chat.id || chat.inflight) return;
+  chat.inflight = true;
+  fetch(`/api/chat/${encodeURIComponent(chat.id)}?since=${chat.lastId}`)
+    .then((r) => r.json())
+    .then((d) => { if (!d.error) { chatPaint(d); chatHeader(d); } })
+    .catch(() => {})
+    .finally(() => { chat.inflight = false; });
+}
+
+function openChat(id) {
+  chat.id = id;
+  chat.lastId = 0;
+  chat.job = null;
+  chat.seen = new Set();
+  chat.inflight = false;
+  chatEl('chat-body').innerHTML = '<p class="hint">lädt …</p>';
+  document.getElementById('chat').classList.add('show');
+  document.getElementById('work').classList.remove('show');
+  work.open = false;
+  document.getElementById('chat-btn').classList.add('on');
+  fetch(`/api/chat/${encodeURIComponent(id)}`)
+    .then((r) => r.json())
+    .then((d) => {
+      chatEl('chat-body').innerHTML = '';
+      chatPaint(d);
+      chatHeader(d);
+      chatScroll(true);
+    });
+  if (chat.timer) clearInterval(chat.timer);
+  chat.timer = setInterval(chatPoll, 1300);
+  chatEl('chat-in').focus();
+}
+
+function closeChat() {
+  document.getElementById('chat').classList.remove('show');
+  document.getElementById('chat-btn').classList.remove('on');
+  if (chat.timer) clearInterval(chat.timer);
+  chat.timer = null;
+  chat.id = null;
+}
+
+function newChat() {
+  chat.id = null;
+  chat.lastId = 0;
+  chat.seen = new Set();
+  chat.inflight = false;
+  chat.job = null;
+  chat.busy = false;
+  chatEl('chat-body').innerHTML = '<p class="hint">neue Unterhaltung — schreib los, der erste Satz startet sie.</p>';
+  document.getElementById('chat').classList.add('show');
+  chatEl('chat-title').textContent = 'neue unterhaltung';
+  chatEl('chat-sub').textContent = 'erste Nachricht startet einen neuen Lauf';
+  chatEl('chat-in').focus();
+}
+
+function setChatBusy(on) {
+  chat.busy = on;
+  chatEl('chat-send').disabled = on;
+  chatEl('chat-stop').hidden = !on;
+}
+
+async function sendChat() {
+  const input = chatEl('chat-in');
+  const text = input.value.trim();
+  if (!text || chat.busy) return;
+  input.value = '';
+  chatEl('chat-body').insertAdjacentHTML('beforeend',
+    `<div class="m user"><div class="who">du</div><div class="txt">${escapeHtml(text)}</div></div>`);
+  chatScroll(true);
+  setChatBusy(true);
+  const res = await workPost('/api/chat', { prompt: text, session: chat.id || null });
+  if (res.error) {
+    setChatBusy(false);
+    chatEl('chat-sub').textContent = 'fehler: ' + res.error;
+    return;
+  }
+  chat.job = res.job ? res.job.id : null;
+  if (!chat.id) {
+    // erster Satz: warten bis der Lauf seine Session angelegt hat, dann andocken
+    let tries = 0;
+    const bind = setInterval(() => {
+      tries += 1;
+      fetch('/api/jobs').then((r) => r.json()).then((d) => {
+        const job = (d.jobs || []).find((j) => j.id === chat.job);
+        if (job && job.session) {
+          clearInterval(bind);
+          chat.id = job.session;
+          chat.lastId = 0;
+          chat.seen = new Set();
+          chatEl('chat-body').innerHTML = '';
+          chatPoll();
+          chatScroll(true);
+          if (!chat.timer) chat.timer = setInterval(chatPoll, 1300);
+        } else if (tries > 40) { clearInterval(bind); }
+      }).catch(() => {});
+    }, 1000);
+  }
+  // fertig? dann busy lösen
+  const wait = setInterval(() => {
+    fetch('/api/jobs').then((r) => r.json()).then((d) => {
+      const job = (d.jobs || []).find((j) => j.id === chat.job);
+      if (!job) return;
+      if (!job.alive) { clearInterval(wait); setChatBusy(false); chatPoll(); }
+      else { if (job.session && !chat.id) { chat.id = job.session; } chatPoll(); }
+    }).catch(() => {});
+  }, 2000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  chatEl('chat-send').addEventListener('click', sendChat);
+  chatEl('chat-in').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  });
+  chatEl('chat-x').addEventListener('click', closeChat);
+  chatEl('chat-new').addEventListener('click', newChat);
+  chatEl('chat-info').addEventListener('click', () => { if (chat.id) openSession(chat.id); });
+  chatEl('chat-stop').addEventListener('click', async () => {
+    if (chat.job) { await workPost('/api/stop', { job: chat.job }); setChatBusy(false); }
+  });
+  document.getElementById('chat-btn').addEventListener('click', () => {
+    if (document.getElementById('chat').classList.contains('show')) closeChat();
+    else if (chat.id) { document.getElementById('chat').classList.add('show'); document.getElementById('chat-btn').classList.add('on'); }
+    else newChat();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('chat').classList.contains('show')) closeChat();
+    if (e.key === 'c' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'TEXTAREA'
+        && document.activeElement.tagName !== 'INPUT') {
+      document.getElementById('chat-btn').click();
+    }
   });
 });
