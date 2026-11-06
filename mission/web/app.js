@@ -446,8 +446,10 @@ window.addEventListener('pointerup', (e) => {
   sky.classList.remove('dragging');
   if (wasDrag) return;
   const n = pick(e.clientX, e.clientY);
-  if (n) openChat(n.id);
-  else closeDrawer();
+  if (n) { openChat(n.id); return; }
+  const label = pickProject(e.clientX, e.clientY);
+  if (label) { openProject(label); return; }
+  closeDrawer();
 });
 
 sky.addEventListener('wheel', (e) => {
@@ -888,6 +890,7 @@ function openChat(id) {
   chat.lastTool = '';
   chatEl('chat-body').innerHTML = '<p class="hint">lädt …</p>';
   document.getElementById('chat').classList.add('show');
+  document.getElementById('project').classList.add('with-chat');
   document.getElementById('work').classList.remove('show');
   work.open = false;
   document.getElementById('chat-btn').classList.add('on');
@@ -906,6 +909,7 @@ function openChat(id) {
 
 function closeChat() {
   document.getElementById('chat').classList.remove('show');
+  document.getElementById('project').classList.remove('with-chat');
   document.getElementById('chat-btn').classList.remove('on');
   if (chat.timer) clearInterval(chat.timer);
   chat.timer = null;
@@ -1038,10 +1042,99 @@ document.addEventListener('DOMContentLoaded', () => {
     else newChat();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.getElementById('chat').classList.contains('show')) closeChat();
+    if (e.key === 'Escape') {
+      if (document.getElementById('chat').classList.contains('show')) closeChat();
+      else if (document.getElementById('project').classList.contains('show')) closeProject();
+    }
     if (e.key === 'c' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'TEXTAREA'
         && document.activeElement.tagName !== 'INPUT') {
       document.getElementById('chat-btn').click();
     }
   });
+});
+
+/* ---------- projekt-ansicht: alles, was in einem Projekt passiert ------- */
+const proj = { label: null, timer: null, lastEvent: 0 };
+
+function projClock(ts) {
+  return new Date((ts || 0) * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function projRender(d) {
+  document.getElementById('proj-title').textContent = d.label;
+  document.getElementById('proj-sub').textContent =
+    `${d.sessions.length} unterhaltungen · letzte 24 h · stand ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+  document.getElementById('proj-stats').innerHTML = `
+    <div class="s"><b>${fmt(d.tokens)}</b><span> tokens heute</span></div>
+    <div class="s"><b>${money(d.cost || 0)}</b><span> kosten geschätzt</span></div>
+    <div class="s"><b>${fmt(d.tools_total || 0)}</b><span> tool-aufrufe</span></div>
+    <div class="s"><b>${d.sessions.length}</b><span> unterhaltungen</span></div>`;
+
+  const max = Math.max(1, ...d.series.map((s) => s.tokens));
+  document.getElementById('proj-series').innerHTML = d.series.map((s) => {
+    const h = Math.round((s.tokens / max) * 60);
+    return `<div class="bar${s.tokens ? '' : ' zero'}" style="height:${Math.max(2, h)}px" title="${s.hour}:00 · ${fmt(s.tokens)} tokens"><span>${s.hour}</span></div>`;
+  }).join('');
+
+  document.getElementById('proj-events').innerHTML = (d.events || []).map((e) => `
+    <div class="ev"><span class="t">${projClock(e.timestamp)}</span>
+      <span class="r">${escapeHtml(e.tool_name || e.role || '')}</span>
+      <span class="c">${escapeHtml((e.snippet || '').replace(/\s+/g, ' ').slice(0, 170))}</span></div>`).join('')
+    || '<p class="hint">noch nichts passiert</p>';
+
+  document.getElementById('proj-sessions').innerHTML = d.sessions.map((s) => `
+    <div class="row" data-sid="${escapeHtml(s.id)}">
+      ${s.live ? '<span class="live"></span>' : ''}
+      <span class="t">${escapeHtml(s.title)}</span>
+      <span class="n">${fmt(s.tokens)} tok · ${money(s.cost || 0)} · ${fmt(s.tools || 0)} tools</span>
+    </div>`).join('') || '<p class="hint">keine unterhaltung</p>';
+
+  const tmax = Math.max(1, ...(d.tools || []).map((t) => t.tokens || t.calls || 1));
+  document.getElementById('proj-tools').innerHTML = (d.tools || []).slice(0, 10).map((t) => `
+    <div class="row"><span class="t">${escapeHtml(t.name)}</span>
+      <span class="bar2" style="width:${Math.round(((t.tokens || t.calls) / tmax) * 120)}px"></span>
+      <span class="n">${fmt(t.calls)}×</span></div>`).join('') || '<p class="hint">—</p>';
+
+  document.querySelectorAll('#proj-sessions .row').forEach((row) => {
+    row.addEventListener('click', () => openChat(row.dataset.sid));
+  });
+}
+
+function projLoad() {
+  if (!proj.label) return;
+  fetch(`/api/project/${encodeURIComponent(proj.label)}?hours=24`)
+    .then((r) => r.json())
+    .then((d) => { if (!d.error) projRender(d); })
+    .catch(() => {});
+}
+
+function openProject(label) {
+  proj.label = label;
+  document.getElementById('project').classList.add('show');
+  document.getElementById('proj-title').textContent = label;
+  document.getElementById('proj-body').scrollTop = 0;
+  projLoad();
+  if (proj.timer) clearInterval(proj.timer);
+  proj.timer = setInterval(projLoad, 4000);
+}
+
+function closeProject() {
+  document.getElementById('project').classList.remove('show');
+  if (proj.timer) clearInterval(proj.timer);
+  proj.timer = null;
+  proj.label = null;
+}
+
+function pickProject(x, y) {
+  for (const c of clusters) {
+    const p = toScreen(c.cx, c.cy);
+    const r = Math.max(34, c.r * cam.scale);
+    if (Math.hypot(x - p.x, y - p.y) < r) return c.label;
+  }
+  return null;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('proj-x').addEventListener('click', closeProject);
+  document.getElementById('project').addEventListener('click', (e) => e.stopPropagation());
 });

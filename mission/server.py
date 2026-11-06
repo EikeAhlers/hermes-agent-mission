@@ -12,7 +12,7 @@ import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import unquote, parse_qs, urlparse
 
 from . import jobs, store
 
@@ -87,6 +87,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"hits": store.search(query.get("q", [""])[0])})
         if route == "/api/waste":
             return self._json({"sessions": store.waste()})
+        if route.startswith("/api/project/"):
+            name = unquote(route.rsplit("/", 1)[-1])
+            hours = float(query.get("hours", ["24"])[0] or 24)
+            return self._json(store.project(name, hours))
         if route.startswith("/api/chat/"):
             sid = route.rsplit("/", 1)[-1]
             since = int(query.get("since", ["0"])[0] or 0)

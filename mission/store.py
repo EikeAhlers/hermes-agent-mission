@@ -334,3 +334,81 @@ def transcript(session_id: str, after_id: int = 0, limit: int = 300) -> dict:
         "started_at": (head["started_at"] if head else 0),
         "messages": out,
     }
+
+
+def project(label: str, hours: float = 24.0) -> dict:
+    """Everything that happened inside one project (cluster) — for the project view."""
+    import time as _time
+
+    since = _time.time() - float(hours) * 3600
+    with _conn() as conn:
+        rows = conn.execute(
+            "select id, title, source, model, "
+            "(coalesce(input_tokens,0) + coalesce(output_tokens,0) + coalesce(cache_read_tokens,0) "
+            " + coalesce(cache_write_tokens,0)) as token_count, "
+            "estimated_cost_usd as cost, "
+            "tool_call_count as tools, message_count as msgs, started_at, "
+            "coalesce(last_activity_at, started_at) as last, ended_at "
+            "from sessions where coalesce(last_activity_at, started_at) >= ? "
+            "order by last desc",
+            (since,),
+        ).fetchall()
+        keep = [r for r in rows if cluster_key(r["title"], r["source"]) == label]
+        ids = [r["id"] for r in keep]
+        tools: list[dict] = []
+        events: list[dict] = []
+        if ids:
+            marks = ",".join("?" * len(ids))
+            tools = [
+                dict(r)
+                for r in conn.execute(
+                    "select coalesce(tool_name,'?') as name, count(*) as calls, "
+                    "coalesce(sum(token_count),0) as tokens from messages "
+                    f"where session_id in ({marks}) and tool_name is not null "
+                    "group by tool_name order by tokens desc",
+                    ids,
+                ).fetchall()
+            ]
+            events = [
+                dict(r)
+                for r in conn.execute(
+                    "select m.id, m.session_id, m.role, m.tool_name, "
+                    "substr(coalesce(m.content,''),1,240) as snippet, m.timestamp "
+                    f"from messages m where m.session_id in ({marks}) "
+                    "order by m.id desc limit 40",
+                    ids,
+                ).fetchall()
+            ]
+    buckets: dict[str, int] = {}
+    for r in keep:
+        key = _time.strftime("%H", _time.localtime(r["started_at"] or 0))
+        buckets[key] = buckets.get(key, 0) + (r["token_count"] or 0)
+    now = _time.localtime()
+    this_hour = now.tm_hour
+    series = []
+    for off in range(int(hours) - 1, -1, -1):
+        h = (this_hour - off) % 24
+        series.append({"hour": f"{h:02d}", "tokens": buckets.get(f"{h:02d}", 0)})
+    return {
+        "label": label,
+        "hours": hours,
+        "tokens": sum(r["token_count"] or 0 for r in keep),
+        "cost": sum(float(r["cost"] or 0) for r in keep),
+        "tools_total": sum(r["tools"] or 0 for r in keep),
+        "sessions": [
+            {
+                "id": r["id"],
+                "title": r["title"] or "(ohne Titel)",
+                "tokens": r["token_count"] or 0,
+                "cost": float(r["cost"] or 0),
+                "tools": r["tools"] or 0,
+                "last": r["last"],
+                "model": r["model"] or "",
+                "live": bool(r["last"] and not r["ended_at"] and (_time.time() - r["last"]) < 180),
+            }
+            for r in keep
+        ],
+        "tools": tools,
+        "events": events,
+        "series": series,
+    }

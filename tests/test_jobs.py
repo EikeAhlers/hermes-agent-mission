@@ -52,3 +52,19 @@ def test_transcript_unknown_session_is_empty():
     from mission import store
 
     assert store.transcript("gibt-es-nicht")["messages"] == []
+
+
+def test_project_has_series_and_stats():
+    from mission import store
+
+    d = store.project("wind")
+    assert set(d) >= {"label", "tokens", "cost", "series", "sessions", "tools", "events"}
+    assert len(d["series"]) == 24
+    assert isinstance(d["tokens"], int)
+
+
+def test_project_unknown_is_empty():
+    from mission import store
+
+    d = store.project("gibt-es-sicher-nicht")
+    assert d["sessions"] == [] and d["tokens"] == 0
